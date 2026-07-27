@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>แบบสำรวจ มก.บางเขน (Google Sheets)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Sarabun', sans-serif; background-color: #f0f2f5; color: #1c1e21; margin: 0; padding: 10px; -webkit-text-size-adjust: 100%; }
+        .container { max-width: 800px; margin: auto; }
+        
+        .header-banner { background-color: #1b5e20; color: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; text-align: center; }
+        .header-banner h1 { margin: 0; font-size: 1.2em; }
+        
+        .section { background: #ffffff; border-radius: 8px; padding: 20px; margin-bottom: 15px; border: 1px solid #ddd; }
+        .section-title { font-size: 1.1em; color: #1b5e20; border-bottom: 2px solid #e8f5e9; padding-bottom: 10px; margin-bottom: 20px; font-weight: bold; }
+        
+        .question-block { margin-bottom: 25px; }
+        .question-label { display: block; margin-bottom: 10px; font-weight: bold; }
+        .required-mark { color: red; }
+        
+        select, textarea { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-family: 'Sarabun', sans-serif; font-size: 1em; box-sizing: border-box; background-color: #fafafa; }
+        
+        .radio-list { display: flex; flex-direction: column; gap: 10px; }
+        .radio-option { display: flex; align-items: center; gap: 10px; padding: 12px; background-color: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; cursor: pointer; }
+        .radio-option input[type="radio"] { width: 22px; height: 22px; margin: 0; }
+        
+        .submit-btn { background: #f9a825; color: #333; padding: 18px; border: none; border-radius: 8px; font-size: 1.2em; font-weight: bold; width: 100%; font-family: 'Sarabun', sans-serif; cursor: pointer; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        
+        /* หน้าจอโหลดข้อมูล */
+        #loadingOverlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.9); z-index: 3000;
+            display: none; justify-content: center; align-items: center; flex-direction: column;
+            font-size: 1.2em; color: #1b5e20; font-weight: bold;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3; border-top: 4px solid #1b5e20; border-radius: 50%;
+            width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div id="loadingOverlay">
+    <div class="spinner"></div>
+    กำลังส่งข้อมูลเข้า Google Sheets...
+</div>
+
+<div class="container">
+    <div class="header-banner">
+        <h1>แบบสำรวจการเดินทาง มก.บางเขน</h1>
+        <p style="margin:5px 0 0 0; font-size: 0.9em;">(ระบบส่งข้อมูลเข้า Google Sheets อัตโนมัติ)</p>
+    </div>
+
+    <form id="surveyForm">
+        <!-- ส่วนที่ 1 -->
+        <div class="section">
+            <div class="section-title">ส่วนที่ 1: ข้อมูลส่วนบุคคล</div>
+            
+            <div class="question-block">
+                <label class="question-label">1.1 สถานภาพ <span class="required-mark">*</span></label>
+                <div class="radio-list">
+                    <label class="radio-option"><input type="radio" name="status" value="UG"> นิสิตปริญญาตรี</label>
+                    <label class="radio-option"><input type="radio" name="status" value="PG"> นิสิตบัณฑิตศึกษา</label>
+                    <label class="radio-option"><input type="radio" name="status" value="Staff_Academic"> อาจารย์/นักวิจัย</label>
+                    <label class="radio-option"><input type="radio" name="status" value="Staff_Support"> เจ้าหน้าที่</label>
+                </div>
+            </div>
+
+            <div class="question-block">
+                <label class="question-label">1.2 สังกัด <span class="required-mark">*</span></label>
+                <select name="faculty">
+                    <option value="">-- เลือก --</option>
+                    <option value="Engineering">วิศวกรรมศาสตร์</option>
+                    <option value="Agriculture">เกษตร</option>
+                    <option value="Science">วิทยาศาสตร์</option>
+                    <option value="Economics">เศรษฐศาสตร์</option>
+                    <option value="Other">อื่นๆ</option>
+                </select>
+            </div>
+
+            <div class="question-block">
+                <label class="question-label">1.3 รายได้/เดือน <span class="required-mark">*</span></label>
+                <select name="income">
+                    <option value="">-- เลือก --</option>
+                    <option value="<10000">น้อยกว่า 10,000</option>
+                    <option value="10001-20000">10,001 - 20,000</option>
+                    <option value="20001-30000">20,001 - 30,000</option>
+                    <option value=">30000">มากกว่า 30,000</option>
+                </select>
+            </div>
+
+            <div class="question-block">
+                <label class="question-label">1.4 ใบขับขี่ที่มี <span class="required-mark">*</span></label>
+                <select name="license">
+                    <option value="">-- เลือก --</option>
+                    <option value="None">ไม่มี</option>
+                    <option value="Motorcycle">รถจักรยานยนต์</option>
+                    <option value="Car">รถยนต์</option>
+                    <option value="Both">ทั้งสองอย่าง</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- ส่วนที่ 3 -->
+        <div class="section">
+            <div class="section-title">ส่วนที่ 3: สถานการณ์สมมติ (เลือกระบบที่ชอบที่สุด) <span class="required-mark">*</span></div>
+            <div class="radio-list">
+                <label class="radio-option"><input type="radio" name="sp_choice" value="Walk"> 🚶 ทางเดินเท้ามีหลังคา (ฟรี)</label>
+                <label class="radio-option"><input type="radio" name="sp_choice" value="Bus"> 🚌 รถตะไล KU Smart Bus (ฟรี)</label>
+                <label class="radio-option"><input type="radio" name="sp_choice" value="EVMoto"> 🏍️ วินมอเตอร์ไซค์ไฟฟ้า (20 บ.)</label>
+                <label class="radio-option"><input type="radio" name="sp_choice" value="EVScooter"> ⚡ สกู๊ตเตอร์ไฟฟ้า Solar (10 บ.)</label>
+                <label class="radio-option"><input type="radio" name="sp_choice" value="AVPod"> 🤖 รถไฟฟ้าไร้คนขับ AV (15 บ.)</label>
+            </div>
+        </div>
+
+        <!-- ส่วนที่ 4 -->
+        <div class="section">
+            <div class="section-title">ส่วนที่ 4: ทัศนคติ (1=น้อยสุด, 5=มากสุด)</div>
+            
+            <div class="question-block">
+                <label class="question-label">4.1 อากาศร้อนทำให้ไม่อยากเดิน <span class="required-mark">*</span></label>
+                <div class="radio-list" style="flex-direction: row; flex-wrap: wrap;">
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_weather" value="1"> 1</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_weather" value="2"> 2</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_weather" value="3"> 3</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_weather" value="4"> 4</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_weather" value="5"> 5</label>
+                </div>
+            </div>
+
+            <div class="question-block">
+                <label class="question-label">4.2 มั่นใจหากใช้รถไร้คนขับ <span class="required-mark">*</span></label>
+                <div class="radio-list" style="flex-direction: row; flex-wrap: wrap;">
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_av" value="1"> 1</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_av" value="2"> 2</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_av" value="3"> 3</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_av" value="4"> 4</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_av" value="5"> 5</label>
+                </div>
+            </div>
+
+            <div class="question-block">
+                <label class="question-label">4.3 ยินดีจ่าย 5-10 บ. ถ้าระบบดี <span class="required-mark">*</span></label>
+                <div class="radio-list" style="flex-direction: row; flex-wrap: wrap;">
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_wtp" value="1"> 1</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_wtp" value="2"> 2</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_wtp" value="3"> 3</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_wtp" value="4"> 4</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_wtp" value="5"> 5</label>
+                </div>
+            </div>
+            
+            <div class="question-block">
+                <label class="question-label">ข้อเสนอแนะเพิ่มเติม:</label>
+                <textarea name="suggestions" rows="2"></textarea>
+            </div>
+        </div>
+
+        <button type="button" class="submit-btn" onclick="validateAndSave()">☁️ ส่งข้อมูลเข้า Google Sheets</button>
+
+    </form>
+</div>
+
+<script>
+    // ==========================================
+    // เอา URL ที่ได้จาก Google Apps Script มาวางในเครื่องหมายคำพูดด้านล่างนี้
+    // ==========================================
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbxrbukgLyEIb5DmJCf4uyXdEGU3l-OOefbqM4AXGEa3Q0wAnHEP7vjD4HOf6V0I3r_NBw/exec'; 
+
+
+    function validateAndSave() {
+        if (scriptURL === 'YOUR_WEB_APP_URL_HERE') {
+            alert('⚠️ กรุณานำ URL ของ Google Apps Script มาใส่ในโค้ดบรรทัดที่ 216 ก่อนใช้งานครับ!');
+            return;
+        }
+
+        const form = document.getElementById('surveyForm');
+        const requiredNames = ['status', 'faculty', 'income', 'license', 'sp_choice', 'att_weather', 'att_av', 'att_wtp'];
+        
+        // Validation (เช็คว่าตอบครบไหม)
+        for (let name of requiredNames) {
+            let elements = document.getElementsByName(name);
+            if (elements.length > 0) {
+                if (elements[0].tagName === 'SELECT') {
+                    if (elements[0].value === '') { 
+                        alert('⚠️ กรุณาเลือกข้อมูลให้ครบ'); 
+                        elements[0].focus(); 
+                        return; 
+                    }
+                } else if (elements[0].type === 'radio') {
+                    let checked = false;
+                    for (let i = 0; i < elements.length; i++) {
+                        if (elements[i].checked) { checked = true; break; }
+                    }
+                    if (!checked) { 
+                        alert('⚠️ กรุณาเลือกคำตอบให้ครบทุกข้อ'); 
+                        elements[0].scrollIntoView(); 
+                        return; 
+                    }
+                }
+            }
+        }
+
+        // แสดงหน้าจอโหลด
+        document.getElementById('loadingOverlay').style.display = 'flex';
+
+        // ดึงข้อมูลและส่งไปที่ Google Sheets (ผ่าน POST No-Cors Bypass)
+        const formData = new FormData(form);
+
+        fetch(scriptURL, { method: 'POST', mode: 'no-cors', body: formData })
+            .then(response => {
+                // ปิดหน้าจอโหลด
+                document.getElementById('loadingOverlay').style.display = 'none';
+                alert('✅ บันทึกข้อมูลเข้า Google Sheets สำเร็จ!');
+                form.reset();
+                window.scrollTo(0, 0);
+            })
+            .catch(error => {
+                document.getElementById('loadingOverlay').style.display = 'none';
+                alert('❌ เกิดข้อผิดพลาดในการส่งข้อมูล โปรดตรวจสอบอินเทอร์เน็ต');
+                console.error('Error!', error.message);
+            });
+    }
+</script>
+
+</body>
+</html>
