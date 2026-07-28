@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>แบบสำรวจ มก.บางเขน (Google Sheets)</title>
+    <title>แบบสำรวจ มก.บางเขน (Dynamic Zone)</title>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Sarabun', sans-serif; background-color: #f0f2f5; color: #1c1e21; margin: 0; padding: 10px; -webkit-text-size-adjust: 100%; }
@@ -22,39 +22,68 @@
         select, textarea { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-family: 'Sarabun', sans-serif; font-size: 1em; box-sizing: border-box; background-color: #fafafa; }
         
         .radio-list { display: flex; flex-direction: column; gap: 10px; }
-        .radio-option { display: flex; align-items: center; gap: 10px; padding: 12px; background-color: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; cursor: pointer; }
+        .radio-option { display: flex; align-items: center; gap: 10px; padding: 12px; background-color: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
         .radio-option input[type="radio"] { width: 22px; height: 22px; margin: 0; }
         
         .submit-btn { background: #f9a825; color: #333; padding: 18px; border: none; border-radius: 8px; font-size: 1.2em; font-weight: bold; width: 100%; font-family: 'Sarabun', sans-serif; cursor: pointer; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         
-        /* หน้าจอโหลดข้อมูล */
+        /* Map Zone Styles */
+        .map-wrapper { position: relative; background: #e9ecef; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+        .map-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+        .grid-box {
+            background: white; border: 2px solid #bdbdbd; border-radius: 6px; padding: 8px 4px; text-align: center;
+            cursor: pointer; display: flex; flex-direction: column; justify-content: center; min-height: 65px;
+            transition: all 0.2s; user-select: none; position: relative;
+        }
+        .grid-box:active { transform: scale(0.96); }
+        .grid-box strong { font-size: 0.9em; color: #333; }
+        .grid-box small { font-size: 0.7em; color: #666; margin-top: 4px; line-height: 1.2; }
+        .grid-empty { visibility: hidden; }
+        
+        .grid-box.origin { border-color: #4caf50; background: #e8f5e9; box-shadow: 0 0 0 2px #4caf50; }
+        .grid-box.dest { border-color: #f44336; background: #ffebee; box-shadow: 0 0 0 2px #f44336; }
+        .badge { position: absolute; top: -8px; right: -8px; width: 22px; height: 22px; border-radius: 50%; color: white; font-weight: bold; font-size: 0.8em; display: flex; justify-content: center; align-items: center; z-index: 10;}
+        .origin .badge { background: #4caf50; content: 'A'; }
+        .dest .badge { background: #f44336; content: 'B'; }
+
+        .map-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 0.9em;}
+        .status-text { font-weight: bold; color: #1b5e20; }
+        .btn-clear-map { background: #e0e0e0; border: none; padding: 5px 10px; border-radius: 4px; font-family: 'Sarabun'; cursor: pointer; font-size: 0.85em; }
+
+        /* Dynamic SP Choices */
+        #spChoiceContainer { display: none; margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 15px;}
+        .sp-details { font-size: 0.85em; color: #606770; margin-top: 4px; line-height: 1.4;}
+        .cost-free { color: #2e7d32; font-weight: bold; }
+        .cost-pay { color: #d84315; font-weight: bold; }
+        
         #loadingOverlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(255,255,255,0.9); z-index: 3000;
             display: none; justify-content: center; align-items: center; flex-direction: column;
             font-size: 1.2em; color: #1b5e20; font-weight: bold;
         }
-        .spinner {
-            border: 4px solid #f3f3f3; border-top: 4px solid #1b5e20; border-radius: 50%;
-            width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-<div id="loadingOverlay">
-    <div class="spinner"></div>
-    กำลังส่งข้อมูลเข้า Google Sheets...
-</div>
+<div id="loadingOverlay">กำลังส่งข้อมูลเข้า Google Sheets...</div>
 
 <div class="container">
     <div class="header-banner">
         <h1>แบบสำรวจการเดินทาง มก.บางเขน</h1>
-        <p style="margin:5px 0 0 0; font-size: 0.9em;">(ระบบส่งข้อมูลเข้า Google Sheets อัตโนมัติ)</p>
     </div>
 
-    <form id="surveyForm">
+    <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;" onload="if(submitted) { formSubmitComplete(); }"></iframe>
+    
+    <form id="surveyForm" target="hidden_iframe" onsubmit="prepareSubmit(event)" method="POST">
+        
+        <input type="hidden" name="origin_zone" id="origin_zone_input">
+        <input type="hidden" name="dest_zone" id="dest_zone_input">
+
         <!-- ส่วนที่ 1 -->
         <div class="section">
             <div class="section-title">ส่วนที่ 1: ข้อมูลส่วนบุคคล</div>
@@ -62,7 +91,7 @@
             <div class="question-block">
                 <label class="question-label">1.1 สถานภาพ <span class="required-mark">*</span></label>
                 <div class="radio-list">
-                    <label class="radio-option"><input type="radio" name="status" value="UG"> นิสิตปริญญาตรี</label>
+                    <label class="radio-option"><input type="radio" name="status" value="UG" required> นิสิตปริญญาตรี</label>
                     <label class="radio-option"><input type="radio" name="status" value="PG"> นิสิตบัณฑิตศึกษา</label>
                     <label class="radio-option"><input type="radio" name="status" value="Staff_Academic"> อาจารย์/นักวิจัย</label>
                     <label class="radio-option"><input type="radio" name="status" value="Staff_Support"> เจ้าหน้าที่</label>
@@ -71,19 +100,41 @@
 
             <div class="question-block">
                 <label class="question-label">1.2 สังกัด <span class="required-mark">*</span></label>
-                <select name="faculty">
+                <select name="faculty" required>
                     <option value="">-- เลือก --</option>
-                    <option value="Engineering">วิศวกรรมศาสตร์</option>
-                    <option value="Agriculture">เกษตร</option>
-                    <option value="Science">วิทยาศาสตร์</option>
-                    <option value="Economics">เศรษฐศาสตร์</option>
-                    <option value="Other">อื่นๆ</option>
+                    <option value="คณะเกษตร">คณะเกษตร</option>
+                    <option value="คณะอุตสาหกรรมเกษตร">คณะอุตสาหกรรมเกษตร</option>
+                    <option value="คณะประมง">คณะประมง</option>
+                    <option value="คณะวนศาสตร์">คณะวนศาสตร์</option>
+                    <option value="คณะวิทยาศาสตร์">คณะวิทยาศาสตร์</option>
+                    <option value="คณะวิศวกรรมศาสตร์">คณะวิศวกรรมศาสตร์</option>
+                    <option value="คณะสถาปัตยกรรมศาสตร์">คณะสถาปัตยกรรมศาสตร์</option>
+                    <option value="คณะสัตวแพทยศาสตร์">คณะสัตวแพทยศาสตร์</option>
+                    <option value="คณะเทคนิคการสัตวแพทย์">คณะเทคนิคการสัตวแพทย์</option>
+                    <option value="คณะบริหารธุรกิจ">คณะบริหารธุรกิจ</option>
+                    <option value="คณะเศรษฐศาสตร์">คณะเศรษฐศาสตร์</option>
+                    <option value="คณะมนุษยศาสตร์">คณะมนุษยศาสตร์</option>
+                    <option value="คณะสังคมศาสตร์">คณะสังคมศาสตร์</option>
+                    <option value="คณะศึกษาศาสตร์">คณะศึกษาศาสตร์</option>
+                    <option value="คณะสิ่งแวดล้อม">คณะสิ่งแวดล้อม</option>
+                    <option value="คณะพยาบาลศาสตร์">คณะพยาบาลศาสตร์</option>
+                    <option value="คณะแพทยศาสตร์">คณะแพทยศาสตร์</option>
+                    <option value="คณะสาธารณสุขศาสตร์">คณะสาธารณสุขศาสตร์</option>
+                    <option value="คณะศิลปศาสตร์และวิทยาศาสตร์">คณะศิลปศาสตร์และวิทยาศาสตร์</option>
+                    <option value="สำนักบริหารการศึกษา">สำนักบริหารการศึกษา</option>
+                    <option value="สำนักหอสมุด">สำนักหอสมุด</option>
+                    <option value="สำนักบริการคอมพิวเตอร์">สำนักบริการคอมพิวเตอร์</option>
+                    <option value="สำนักส่งเสริมและฝึกอบรม">สำนักส่งเสริมและฝึกอบรม</option>
+                    <option value="สำนักพัฒนาการเรียนรู้ตลอดชีวิต">สำนักพัฒนาการเรียนรู้ตลอดชีวิต</option>
+                    <option value="สำนักพัฒนาคุณภาพ">สำนักพัฒนาคุณภาพ</option>
+                    <option value="สถาบันค้นคว้าและพัฒนาผลิตภัณฑ์อาหาร">สถาบันค้นคว้าและพัฒนาผลิตภัณฑ์อาหาร</option>
+                    <option value="อื่น ๆ">อื่น ๆ</option>
                 </select>
             </div>
 
             <div class="question-block">
                 <label class="question-label">1.3 รายได้/เดือน <span class="required-mark">*</span></label>
-                <select name="income">
+                <select name="income" required>
                     <option value="">-- เลือก --</option>
                     <option value="<10000">น้อยกว่า 10,000</option>
                     <option value="10001-20000">10,001 - 20,000</option>
@@ -94,7 +145,7 @@
 
             <div class="question-block">
                 <label class="question-label">1.4 ใบขับขี่ที่มี <span class="required-mark">*</span></label>
-                <select name="license">
+                <select name="license" required>
                     <option value="">-- เลือก --</option>
                     <option value="None">ไม่มี</option>
                     <option value="Motorcycle">รถจักรยานยนต์</option>
@@ -104,26 +155,88 @@
             </div>
         </div>
 
-        <!-- ส่วนที่ 3 -->
+        <!-- ส่วนที่ 3 Map + SP -->
         <div class="section">
-            <div class="section-title">ส่วนที่ 3: สถานการณ์สมมติ (เลือกระบบที่ชอบที่สุด) <span class="required-mark">*</span></div>
-            <div class="radio-list">
-                <label class="radio-option"><input type="radio" name="sp_choice" value="Walk"> 🚶 ทางเดินเท้ามีหลังคา (ฟรี)</label>
-                <label class="radio-option"><input type="radio" name="sp_choice" value="Bus"> 🚌 รถตะไล KU Smart Bus (ฟรี)</label>
-                <label class="radio-option"><input type="radio" name="sp_choice" value="EVMoto"> 🏍️ วินมอเตอร์ไซค์ไฟฟ้า (20 บ.)</label>
-                <label class="radio-option"><input type="radio" name="sp_choice" value="EVScooter"> ⚡ สกู๊ตเตอร์ไฟฟ้า Solar (10 บ.)</label>
-                <label class="radio-option"><input type="radio" name="sp_choice" value="AVPod"> 🤖 รถไฟฟ้าไร้คนขับ AV (15 บ.)</label>
+            <div class="section-title">ส่วนที่ 2: เส้นทางการเดินทาง & ทางเลือกสมมติ <span class="required-mark">*</span></div>
+            
+            <div class="map-wrapper">
+                <div class="map-controls">
+                    <span id="mapStatus" class="status-text">👉 กดเลือก "จุดเริ่มต้น" บนแผนที่</span>
+                    <button type="button" class="btn-clear-map" onclick="clearMap()">🔄 ล้างการเลือก</button>
+                </div>
+                
+                <div class="map-grid">
+                    <!-- Row 1 -->
+                    <div class="grid-box" data-id="A1" onclick="handleMapClick(this)"><strong>A1</strong><small>ประตูวิภาฯ</small></div>
+                    <div class="grid-box" data-id="B1" onclick="handleMapClick(this)"><strong>B1</strong><small>สาธิตฯ, สถาปัตย์</small></div>
+                    <div class="grid-box" data-id="C1" onclick="handleMapClick(this)"><strong>C1</strong><small>บาร์ใหม่กว่า, กรมข้าว, เกษตร</small></div>
+                    <div class="grid-empty"></div>
+                    
+                    <!-- Row 2 -->
+                    <div class="grid-empty"></div>
+                    <div class="grid-box" data-id="B2" onclick="handleMapClick(this)"><strong>B2</strong><small>ศร.2-4, บาร์ใหม่</small></div>
+                    <div class="grid-box" data-id="C2" onclick="handleMapClick(this)"><strong>C2</strong><small>หอสมุด, วิทยาศาสตร์</small></div>
+                    <div class="grid-empty"></div>
+                    
+                    <!-- Row 3 -->
+                    <div class="grid-empty"></div>
+                    <div class="grid-box" data-id="B3" onclick="handleMapClick(this)"><strong>B3</strong><small>วิศวฯ, ประตูงามฯ 2,3</small></div>
+                    <div class="grid-box" data-id="C3" onclick="handleMapClick(this)"><strong>C3</strong><small>กรุงศรี, ประตูงามฯ 1</small></div>
+                    <div class="grid-box" data-id="D3" onclick="handleMapClick(this)"><strong>D3</strong><small>ประตูพหลฯ, BTS</small></div>
+                </div>
+            </div>
+
+            <!-- จะแสดงเมื่อเลือก A และ B แล้ว -->
+            <div id="spChoiceContainer">
+                <p style="margin-bottom:15px; font-weight:bold; color:#1b5e20;">โปรดเลือกรูปแบบการเดินทางที่ท่านชอบที่สุด สำหรับเส้นทางนี้:</p>
+                <div class="radio-list">
+                    <label class="radio-option">
+                        <input type="radio" name="sp_choice" value="Walk" class="sp-radio"> 
+                        <div>
+                            <strong>🚶 เดิน</strong>
+                            <div class="sp-details" id="sp_walk_details">รอ 0 นาที | เดินทาง - นาที | <span class="cost-free">ฟรี</span></div>
+                        </div>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="sp_choice" value="Bike" class="sp-radio"> 
+                        <div>
+                            <strong>🚲 จักรยาน</strong>
+                            <div class="sp-details" id="sp_bike_details">รอ 0 นาที | เดินทาง - นาที | <span class="cost-free">ฟรี</span></div>
+                        </div>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="sp_choice" value="Car" class="sp-radio"> 
+                        <div>
+                            <strong>🚗 รถยนต์ส่วนตัว</strong>
+                            <div class="sp-details" id="sp_car_details">รอ 0 นาที | เดินทาง - นาที | <span class="cost-pay">- บาท</span></div>
+                        </div>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="sp_choice" value="EVScooter" class="sp-radio"> 
+                        <div>
+                            <strong>⚡ สกู๊ตเตอร์ไฟฟ้า</strong>
+                            <div class="sp-details" id="sp_scooter_details">รอ - นาที | เดินทาง - นาที | <span class="cost-pay">- บาท</span></div>
+                        </div>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="sp_choice" value="Bus" class="sp-radio"> 
+                        <div>
+                            <strong>🚌 รถตะลัย</strong>
+                            <div class="sp-details" id="sp_bus_details">รอ - นาที | เดินทาง - นาที | <span class="cost-free">ฟรี</span></div>
+                        </div>
+                    </label>
+                </div>
             </div>
         </div>
 
         <!-- ส่วนที่ 4 -->
         <div class="section">
-            <div class="section-title">ส่วนที่ 4: ทัศนคติ (1=น้อยสุด, 5=มากสุด)</div>
+            <div class="section-title">ส่วนที่ 3: ทัศนคติ (1=น้อยสุด, 5=มากสุด)</div>
             
             <div class="question-block">
-                <label class="question-label">4.1 อากาศร้อนทำให้ไม่อยากเดิน <span class="required-mark">*</span></label>
+                <label class="question-label">1. สภาพอากาศที่ร้อนจัดหรือฝนตกหนัก มีผลทำให้ท่านตัดสินใจเลือกใช้บริการรถตะลัย 'เพิ่มขึ้น' เมื่อเทียบกับการเดินทางรูปแบบอื่น <span class="required-mark">*</span></label>
                 <div class="radio-list" style="flex-direction: row; flex-wrap: wrap;">
-                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_weather" value="1"> 1</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_weather" value="1" required> 1</label>
                     <label class="radio-option" style="flex:1;"><input type="radio" name="att_weather" value="2"> 2</label>
                     <label class="radio-option" style="flex:1;"><input type="radio" name="att_weather" value="3"> 3</label>
                     <label class="radio-option" style="flex:1;"><input type="radio" name="att_weather" value="4"> 4</label>
@@ -132,97 +245,199 @@
             </div>
 
             <div class="question-block">
-                <label class="question-label">4.2 มั่นใจหากใช้รถไร้คนขับ <span class="required-mark">*</span></label>
+                <label class="question-label">2. ความไม่แน่นอนของ 'ระยะเวลาในการรอรถ' เป็นปัจจัยสำคัญที่ทำให้ท่านหลีกเลี่ยงการใช้บริการรถตะลัย <span class="required-mark">*</span></label>
                 <div class="radio-list" style="flex-direction: row; flex-wrap: wrap;">
-                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_av" value="1"> 1</label>
-                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_av" value="2"> 2</label>
-                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_av" value="3"> 3</label>
-                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_av" value="4"> 4</label>
-                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_av" value="5"> 5</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_wait" value="1" required> 1</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_wait" value="2"> 2</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_wait" value="3"> 3</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_wait" value="4"> 4</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_wait" value="5"> 5</label>
                 </div>
             </div>
 
             <div class="question-block">
-                <label class="question-label">4.3 ยินดีจ่าย 5-10 บ. ถ้าระบบดี <span class="required-mark">*</span></label>
+                <label class="question-label">3. หากมีแอปพลิเคชันที่สามารถตรวจสอบตำแหน่งและเวลามาถึงของรถตะลัยแบบ Real-time จะช่วยให้ท่านตัดสินใจใช้บริการรถตะลัยแทนรถยนต์ส่วนตัวได้มากขึ้น <span class="required-mark">*</span></label>
                 <div class="radio-list" style="flex-direction: row; flex-wrap: wrap;">
-                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_wtp" value="1"> 1</label>
-                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_wtp" value="2"> 2</label>
-                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_wtp" value="3"> 3</label>
-                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_wtp" value="4"> 4</label>
-                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_wtp" value="5"> 5</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_app" value="1" required> 1</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_app" value="2"> 2</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_app" value="3"> 3</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_app" value="4"> 4</label>
+                    <label class="radio-option" style="flex:1;"><input type="radio" name="att_app" value="5"> 5</label>
                 </div>
             </div>
             
             <div class="question-block">
-                <label class="question-label">ข้อเสนอแนะเพิ่มเติม:</label>
+                <label class="question-label">ข้อเสนอแนะเพิ่มเติม (ถ้ามี):</label>
                 <textarea name="suggestions" rows="2"></textarea>
             </div>
         </div>
 
-        <button type="button" class="submit-btn" onclick="validateAndSave()">☁️ ส่งข้อมูลเข้า Google Sheets</button>
+        <button type="submit" class="submit-btn">☁️ ส่งข้อมูลเข้า Google Sheets</button>
 
     </form>
 </div>
 
 <script>
-    // ==========================================
-    // เอา URL ที่ได้จาก Google Apps Script มาวางในเครื่องหมายคำพูดด้านล่างนี้
-    // ==========================================
     const scriptURL = 'https://script.google.com/macros/s/AKfycbxrbukgLyEIb5DmJCf4uyXdEGU3l-OOefbqM4AXGEa3Q0wAnHEP7vjD4HOf6V0I3r_NBw/exec'; 
+    let submitted = false;
+    document.getElementById('surveyForm').action = scriptURL;
 
+    // --- Map Logic ---
+    let originBox = null;
+    let destBox = null;
+    
+    // Grid Coordinates (X=Col, Y=Row) for distance calculation
+    const coords = {
+        'A1': {x:1, y:1}, 'B1': {x:2, y:1}, 'C1': {x:3, y:1},
+        'B2': {x:2, y:2}, 'C2': {x:3, y:2},
+        'B3': {x:2, y:3}, 'C3': {x:3, y:3}, 'D3': {x:4, y:3}
+    };
 
-    function validateAndSave() {
-        if (scriptURL === 'YOUR_WEB_APP_URL_HERE') {
-            alert('⚠️ กรุณานำ URL ของ Google Apps Script มาใส่ในโค้ดบรรทัดที่ 216 ก่อนใช้งานครับ!');
+    function handleMapClick(box) {
+        let id = box.dataset.id;
+
+        // Toggle selection
+        if (originBox === box) {
+            originBox = null;
+            box.classList.remove('origin');
+            removeBadge(box);
+        } else if (destBox === box) {
+            destBox = null;
+            box.classList.remove('dest');
+            removeBadge(box);
+        } else if (!originBox) {
+            originBox = box;
+            box.classList.add('origin');
+            addBadge(box, 'A');
+        } else if (!destBox) {
+            destBox = box;
+            box.classList.add('dest');
+            addBadge(box, 'B');
+        }
+
+        updateMapStatus();
+    }
+
+    function addBadge(box, letter) {
+        let badge = document.createElement('div');
+        badge.className = 'badge';
+        badge.innerText = letter;
+        box.appendChild(badge);
+    }
+    
+    function removeBadge(box) {
+        let badge = box.querySelector('.badge');
+        if(badge) box.removeChild(badge);
+    }
+
+    function clearMap() {
+        document.querySelectorAll('.grid-box').forEach(b => {
+            b.classList.remove('origin', 'dest');
+            removeBadge(b);
+        });
+        originBox = null;
+        destBox = null;
+        updateMapStatus();
+        
+        // Clear radios
+        document.querySelectorAll('.sp-radio').forEach(r => r.checked = false);
+    }
+
+    function updateMapStatus() {
+        let status = document.getElementById('mapStatus');
+        let spContainer = document.getElementById('spChoiceContainer');
+        
+        if (!originBox && !destBox) {
+            status.innerText = '👉 กดเลือก "จุดเริ่มต้น" บนแผนที่';
+            spContainer.style.display = 'none';
+        } else if (originBox && !destBox) {
+            status.innerText = '👉 กดเลือก "จุดหมายปลายทาง"';
+            spContainer.style.display = 'none';
+        } else if (!originBox && destBox) {
+            status.innerText = '👉 กดเลือก "จุดเริ่มต้น" บนแผนที่';
+            spContainer.style.display = 'none';
+        } else if (originBox && destBox) {
+            status.innerText = `✅ เส้นทาง: ${originBox.dataset.id} ➔ ${destBox.dataset.id}`;
+            document.getElementById('origin_zone_input').value = originBox.dataset.id;
+            document.getElementById('dest_zone_input').value = destBox.dataset.id;
+            
+            calculateAndShowSP();
+        }
+    }
+
+    function calculateAndShowSP() {
+        let oId = originBox.dataset.id;
+        let dId = destBox.dataset.id;
+        
+        // Calculate Distance based on Grid Pseudo-coordinates (Manhattan Distance)
+        let dx = Math.abs(coords[oId].x - coords[dId].x);
+        let dy = Math.abs(coords[oId].y - coords[dId].y);
+        
+        // Assume each grid step is roughly 400 meters. If same box, assume 300 meters (intra-zone)
+        let distanceMeters = (dx + dy === 0) ? 300 : (dx + dy) * 400;
+
+        // Base Calculations
+        let tWalk = Math.ceil(distanceMeters / 60); // 60m/min
+        let tBike = Math.ceil(distanceMeters / 200); // 200m/min
+        let tCar = Math.ceil(distanceMeters / 400) + 2; // +2 min parking
+        let tScooter = Math.ceil(distanceMeters / 300);
+        let tBus = Math.ceil(distanceMeters / 250);
+
+        // Pseudo-random waits & costs based on Hash so it's consistent for the same O-D pair
+        let hash = (oId.charCodeAt(0) + oId.charCodeAt(1) + dId.charCodeAt(0) + dId.charCodeAt(1));
+        
+        let waitScooter = (hash % 3) + 1; // 1-3 mins
+        let waitBus = (hash % 10) + 4; // 4-13 mins
+
+        let costCar = 10; // fixed subjective cost
+        let costScooter = 10 + (tScooter * 2); // Base 10 + 2 THB/min
+
+        // Update UI
+        document.getElementById('sp_walk_details').innerHTML = `รอ 0 นาที | เดินทาง ${tWalk} นาที | <span class="cost-free">ฟรี</span>`;
+        document.getElementById('sp_bike_details').innerHTML = `รอ 0 นาที | เดินทาง ${tBike} นาที | <span class="cost-free">ฟรี</span>`;
+        document.getElementById('sp_car_details').innerHTML = `รอ 0 นาที | เดินทาง ${tCar} นาที | <span class="cost-pay">${costCar} บาท (ค่าน้ำมัน)</span>`;
+        document.getElementById('sp_scooter_details').innerHTML = `รอ ${waitScooter} นาที | เดินทาง ${tScooter} นาที | <span class="cost-pay">${costScooter} บาท</span>`;
+        document.getElementById('sp_bus_details').innerHTML = `รอ ${waitBus} นาที | เดินทาง ${tBus} นาที | <span class="cost-free">ฟรี</span>`;
+
+        document.getElementById('spChoiceContainer').style.display = 'block';
+    }
+
+    // --- Submit Logic ---
+    function prepareSubmit(event) {
+        if (!originBox || !destBox) {
+            alert('⚠️ กรุณาเลือกจุดเริ่มต้น (A) และจุดหมาย (B) บนแผนที่ให้ครบก่อนครับ');
+            event.preventDefault();
             return;
         }
 
-        const form = document.getElementById('surveyForm');
-        const requiredNames = ['status', 'faculty', 'income', 'license', 'sp_choice', 'att_weather', 'att_av', 'att_wtp'];
-        
-        // Validation (เช็คว่าตอบครบไหม)
-        for (let name of requiredNames) {
-            let elements = document.getElementsByName(name);
-            if (elements.length > 0) {
-                if (elements[0].tagName === 'SELECT') {
-                    if (elements[0].value === '') { 
-                        alert('⚠️ กรุณาเลือกข้อมูลให้ครบ'); 
-                        elements[0].focus(); 
-                        return; 
-                    }
-                } else if (elements[0].type === 'radio') {
-                    let checked = false;
-                    for (let i = 0; i < elements.length; i++) {
-                        if (elements[i].checked) { checked = true; break; }
-                    }
-                    if (!checked) { 
-                        alert('⚠️ กรุณาเลือกคำตอบให้ครบทุกข้อ'); 
-                        elements[0].scrollIntoView(); 
-                        return; 
-                    }
-                }
+        // Check Radio validity manually for SP and Attitudes
+        const radios = ['sp_choice', 'att_weather', 'att_wait', 'att_app'];
+        for(let r of radios){
+            let els = document.getElementsByName(r);
+            let checked = false;
+            for(let i=0; i<els.length; i++){
+                if(els[i].checked) { checked=true; break; }
+            }
+            if(!checked){
+                alert('⚠️ กรุณาเลือกคำตอบให้ครบทุกข้อที่มี * ครับ');
+                event.preventDefault();
+                return;
             }
         }
 
-        // แสดงหน้าจอโหลด
         document.getElementById('loadingOverlay').style.display = 'flex';
+        submitted = true;
+    }
 
-        // ดึงข้อมูลและส่งไปที่ Google Sheets (ผ่าน POST No-Cors Bypass)
-        const formData = new FormData(form);
-
-        fetch(scriptURL, { method: 'POST', mode: 'no-cors', body: formData })
-            .then(response => {
-                // ปิดหน้าจอโหลด
-                document.getElementById('loadingOverlay').style.display = 'none';
-                alert('✅ บันทึกข้อมูลเข้า Google Sheets สำเร็จ!');
-                form.reset();
-                window.scrollTo(0, 0);
-            })
-            .catch(error => {
-                document.getElementById('loadingOverlay').style.display = 'none';
-                alert('❌ เกิดข้อผิดพลาดในการส่งข้อมูล โปรดตรวจสอบอินเทอร์เน็ต');
-                console.error('Error!', error.message);
-            });
+    function formSubmitComplete() {
+        document.getElementById('loadingOverlay').style.display = 'none';
+        alert('✅ บันทึกข้อมูลเข้า Google Sheets สำเร็จ!');
+        
+        document.getElementById('surveyForm').reset();
+        clearMap();
+        window.scrollTo(0, 0);
+        
+        submitted = false;
     }
 </script>
 
